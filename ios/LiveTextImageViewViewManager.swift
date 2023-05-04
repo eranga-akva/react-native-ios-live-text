@@ -29,11 +29,29 @@ class LiveTextImageViewView : UIView {
     private let _imageAnalyzer = ImageAnalyzer()
     private var _mySub: Any? = nil;
     private var _imageView: UIImageView? = nil;
+
+    let pinchGesture = UIPinchGestureRecognizer()
+    let tapGesture = UITapGestureRecognizer()
     
+    var originalTransform: CGAffineTransform?
     
     override func didMoveToWindow() {
         if let imageView = self.subviews.first?.subviews.first as? UIImageView {
+
             self._imageView = imageView
+
+            // -- custom moon pinch to zoom start
+
+            self._imageView?.isUserInteractionEnabled = true
+            self._imageView?.contentMode = .scaleAspectFit
+            self._imageView?.addGestureRecognizer(pinchGesture)
+            pinchGesture.addTarget(self, action: #selector(handlePinch(_:)))
+
+            self._imageView?.addGestureRecognizer(tapGesture)
+            tapGesture.numberOfTapsRequired = 2
+            tapGesture.addTarget(self, action: #selector(handleDoubleTap(_:)))
+
+            // -- custom moon pinch to zoom end
             
             self._imageView?.addInteraction(interaction);
             
@@ -44,7 +62,25 @@ class LiveTextImageViewView : UIView {
                 }
             }
     }
-    
+
+    @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+        guard let view = gesture.view else { return }
+
+        view.transform = view.transform.scaledBy(x: gesture.scale, y: gesture.scale)
+        gesture.scale = 1.0
+    }
+
+    @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
+        guard let view = gesture.view else { return }
+
+        if let originalTransform = originalTransform {
+            view.transform = originalTransform
+            self.originalTransform = nil
+        } else {
+            originalTransform = view.transform
+            view.transform = .identity
+        }
+    }
     
     func attachAnalyzerToImage() {
         guard let image = self._imageView?.image else {
@@ -52,7 +88,7 @@ class LiveTextImageViewView : UIView {
             }
         
         Task {
-            let configuration = ImageAnalyzer.Configuration([.text])
+            let configuration = ImageAnalyzer.Configuration([.text, .machineReadableCode])
             
             do {
                 let analysis = try await self._imageAnalyzer.analyze(image, configuration: configuration)
