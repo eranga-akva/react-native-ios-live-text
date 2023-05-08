@@ -35,6 +35,8 @@ class LiveTextImageViewView : UIView {
     
     var originalTransform: CGAffineTransform?
     
+    private var isPanningEnabled = true
+    
     override func didMoveToWindow() {
         if let imageView = self.subviews.first?.subviews.first as? UIImageView {
 
@@ -42,7 +44,6 @@ class LiveTextImageViewView : UIView {
 
             // -- custom moon pinch to zoom start
             
-            self._imageView?.isUserInteractionEnabled = true
             self._imageView?.contentMode = .scaleAspectFit
             self._imageView?.addGestureRecognizer(pinchGesture)
             pinchGesture.addTarget(self, action: #selector(handlePinch(_:)))
@@ -51,10 +52,24 @@ class LiveTextImageViewView : UIView {
             tapGesture.numberOfTapsRequired = 2
             tapGesture.addTarget(self, action: #selector(handleDoubleTap(_:)))
             
-//            let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+            let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
 //            self._imageView?.addGestureRecognizer(panGesture)
-
+            
+            for recognizer in self._imageView?.gestureRecognizers ?? [] {
+                if let swipeGesture = recognizer as? UISwipeGestureRecognizer {
+                    panGesture.require(toFail: swipeGesture)
+                }
+            }
+           
+            self._imageView?.isUserInteractionEnabled = true
+            
+            
+            let swipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
+            swipeGesture.direction = .left
+            addGestureRecognizer(swipeGesture)
+            
             // -- custom moon pinch to zoom end
+            
             
             self._imageView?.addInteraction(interaction);
             
@@ -66,46 +81,40 @@ class LiveTextImageViewView : UIView {
             }
     }
     
-//    @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
-//        guard let view = gesture.view else { return }
-//
-//        // Get the translation of the gesture
-//        let translation = gesture.translation(in: view.superview)
-//
-//        // Move the view by the translation
-//        view.center = CGPoint(x: view.center.x + translation.x,
-//                               y: view.center.y + translation.y)
-//
-//        // Reset the gesture's translation
-//        gesture.setTranslation(.zero, in: view.superview)
-//    }
+    @objc private func handleSwipe(_ gestureRecognizer: UISwipeGestureRecognizer) {
+        isPanningEnabled = false
+    }
+    
     
     @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
         guard let view = gesture.view else { return }
         
-        // Check if the image is scaled beyond its original size
-        let isScaled = view.transform.a != 1.0 || view.transform.d != 1.0
-        
-        // Only allow panning if the image is scaled
-        if isScaled {
-            // Get the translation of the gesture
-            let translation = gesture.translation(in: view.superview)
-            
-            // Move the view by the translation
-            view.center = CGPoint(x: view.center.x + translation.x,
-                                   y: view.center.y + translation.y)
-            
-            // Reset the gesture's translation
-            gesture.setTranslation(.zero, in: view.superview)
-        }
-    }
-
-//    @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
-//        guard let view = gesture.view else { return }
+//        if isPanningEnabled {
+//            // Check if the image is scaled beyond its original size
+//            let isScaled = view.transform.a != 1.0 || view.transform.d != 1.0
 //
-//        view.transform = view.transform.scaledBy(x: gesture.scale, y: gesture.scale)
-//        gesture.scale = 1.0
-//    }
+//            // Only allow panning if the image is scaled
+//            if isScaled {
+//                // Get the translation of the gesture
+//                let translation = gesture.translation(in: view.superview)
+//
+//                // Move the view by the translation
+//                view.center = CGPoint(x: view.center.x + translation.x,
+//                                       y: view.center.y + translation.y)
+//
+//                // Reset the gesture's translation
+//                gesture.setTranslation(.zero, in: view.superview)
+//            }
+//        }
+        let translation = gesture.translation(in: view.superview)
+
+        // Move the view by the translation
+        view.center = CGPoint(x: view.center.x + translation.x,
+                               y: view.center.y + translation.y)
+
+        // Reset the gesture's translation
+        gesture.setTranslation(.zero, in: view.superview)
+    }
     
     @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
         guard let view = gesture.view else { return }
@@ -123,8 +132,16 @@ class LiveTextImageViewView : UIView {
         // Translate the view's origin back to its original position
         transform = transform.translatedBy(x: -pinchMidPoint.x, y: -pinchMidPoint.y)
         
-        // Set the view's transform
-        view.transform = transform
+        // Check if the view has been scaled down beyond its original size
+        if transform.a < 1.0 || transform.d < 1.0 {
+            // If so, reset the scale to the original size
+            view.transform = CGAffineTransform(scaleX: 1.0, y: 1.0)
+        } else if transform.a > 3.0 || transform.d > 3.0 {
+            view.transform = CGAffineTransform(scaleX: 3.0, y: 3.0)
+        } else {
+            // Otherwise, apply the transform
+            view.transform = transform
+        }
         
         // Reset the gesture's scale
         gesture.scale = 1.0
@@ -133,13 +150,14 @@ class LiveTextImageViewView : UIView {
     @objc func handleDoubleTap(_ gesture: UITapGestureRecognizer) {
         guard let view = gesture.view else { return }
 
-        if let originalTransform = originalTransform {
-            view.transform = originalTransform
-            self.originalTransform = nil
-        } else {
-            originalTransform = view.transform
-            view.transform = .identity
-        }
+        view.transform = CGAffineTransform(scaleX: 1.0, y: 1.0)
+//        if let originalTransform = originalTransform {
+//            view.transform = originalTransform
+//            self.originalTransform = nil
+//        } else {
+//            originalTransform = view.transform
+//            view.transform = .identity
+//        }
     }
     
     func attachAnalyzerToImage() {
