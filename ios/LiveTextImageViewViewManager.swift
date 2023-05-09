@@ -37,7 +37,15 @@ class LiveTextImageViewView : UIView {
     
     private var isPanningEnabled = true
     
-    override func didMoveToWindow() {
+    
+    func initializeImageView(attempts: Int) {
+        
+        if attempts == 0 {
+            // Handle the case when imageView is still nil after two attempts
+            print("Failed to initialize imageView")
+            return
+        }
+        
         if let imageView = self.subviews.first?.subviews.first as? UIImageView {
 
             self._imageView = imageView
@@ -63,13 +71,11 @@ class LiveTextImageViewView : UIView {
            
             self._imageView?.isUserInteractionEnabled = true
             
-            
             let swipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
             swipeGesture.direction = .left
             addGestureRecognizer(swipeGesture)
             
             // -- custom moon pinch to zoom end
-            
             
             self._imageView?.addInteraction(interaction);
             
@@ -77,8 +83,18 @@ class LiveTextImageViewView : UIView {
             
             self._mySub = _imageView?.observe(\.image, options: [.new]) { object, change in
                     self.attachAnalyzerToImage()
-                }
             }
+        } else {
+            print("------------------------------- attempts \(attempts)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                self.initializeImageView(attempts: attempts - 1)
+            }
+        }
+    }
+    
+    override func didMoveToWindow() {
+        super.didMoveToWindow();
+        self.initializeImageView(attempts: 2);
     }
     
     @objc private func handleSwipe(_ gestureRecognizer: UISwipeGestureRecognizer) {
